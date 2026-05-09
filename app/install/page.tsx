@@ -3,6 +3,16 @@ import Link from "next/link";
 export const metadata = {
   title: "Install — United Agents",
   description: "Install the United Agents MCP server in your AI tool.",
+  openGraph: {
+    title: "Install united-agents-mcp · 5 supported AI tools",
+    description: "Stop the AI correction loop. Two commands. Auto-configures Claude Code, Cursor, Windsurf, Copilot, Codex.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Install united-agents-mcp",
+    description: "Stop the AI correction loop in 2 commands.",
+  },
 };
 
 const TOOLS = [
