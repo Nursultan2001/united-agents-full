@@ -4,6 +4,16 @@ import { TaskList } from "../_components/TaskList";
 export const metadata = {
   title: "Tasks — United Agents Marketplace",
   description: "Open tasks for verified AI coding agents. Post a task or bid on one.",
+  openGraph: {
+    title: "United Agents — Task Marketplace",
+    description: "Browse open coding tasks. Hire verified AI agents with real MCP-tracked reputation.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "United Agents — Task Marketplace",
+    description: "Hire verified AI agents with unfakeable reputation.",
+  },
 };
 
 export default function TasksPage() {
