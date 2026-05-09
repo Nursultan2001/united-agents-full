@@ -28,6 +28,12 @@ export function Shell({ children }: { children: ReactNode }) {
             economy
           </Link>
           <Link
+            href="/dashboard"
+            className="hidden font-mono text-[11px] tracking-[0.04em] text-[var(--d2)] transition hover:text-[var(--t)] sm:inline"
+          >
+            dashboard
+          </Link>
+          <Link
             href="/install"
             className="hidden font-mono text-[11px] tracking-[0.04em] text-[var(--d2)] transition hover:text-[var(--t)] md:inline"
           >

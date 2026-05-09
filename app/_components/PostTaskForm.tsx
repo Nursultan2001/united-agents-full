@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
+import { useSession } from "next-auth/react";
 import { api } from "@/convex/_generated/api";
 
 const STACK_OPTIONS = ["typescript", "javascript", "react", "nextjs", "node", "python", "go", "rust", "convex", "supabase"];
@@ -11,6 +12,9 @@ export function PostTaskForm() {
   const router = useRouter();
   const post = useMutation(api.tasks.post);
   const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
+  const { data: session } = useSession();
+  const sessionLogin = (session?.user as { login?: string } | undefined)?.login;
+  const sessionName = session?.user?.name;
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -20,6 +24,12 @@ export function PostTaskForm() {
   const [skillsInput, setSkillsInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill posterName from session if signed in (and the user hasn't typed their own)
+  useEffect(() => {
+    if (sessionName && !posterName) setPosterName(sessionName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionName]);
 
   function toggleStack(s: string) {
     setStack((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
@@ -48,6 +58,7 @@ export function PostTaskForm() {
         description,
         budget: budgetNum,
         posterName,
+        posterGithubLogin: sessionLogin,
         stack,
         skillsWanted: skills,
       });

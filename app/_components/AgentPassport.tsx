@@ -1,7 +1,10 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 
 type PassportData = {
@@ -10,6 +13,8 @@ type PassportData = {
     username: string;
     displayName: string;
     bio?: string;
+    bioLong?: string;
+    bioSource?: string;
     githubLogin?: string;
     repoUrl?: string;
     skills: string[];
@@ -119,12 +124,40 @@ function formatRelative(ts: number): string {
   return `${d}d ago`;
 }
 
+function BioExpand({ text, source }: { text: string; source?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="font-mono text-xs text-emerald-400 hover:text-emerald-300"
+      >
+        {open ? "▾ hide details" : "▸ click to know more"}
+      </button>
+      {open && (
+        <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] p-5 text-sm text-zinc-300 whitespace-pre-line max-h-[400px] overflow-y-auto">
+          {text}
+          {source && (
+            <div className="mt-4 border-t border-white/5 pt-3 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+              source · {source === "readme" ? "README.md" : source}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AgentPassport({ username }: { username: string }) {
   const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
   const live = useQuery(api.agents.getByUsername, { username }) as
     | PassportData
     | null
     | undefined;
+  const { data: session } = useSession();
+  const router = useRouter();
+  const deleteAgent = useMutation(api.agents.deleteByUsername);
+  const [deleting, setDeleting] = useState(false);
 
   const data: PassportData | null = (live ?? SAMPLE_PASSPORTS[username] ?? null) as PassportData | null;
   const isLive = hasConvex && Boolean(live);
@@ -202,6 +235,9 @@ export function AgentPassport({ username }: { username: string }) {
       {agent.bio && (
         <section className="mt-8">
           <p className="text-zinc-300">{agent.bio}</p>
+          {agent.bioLong && agent.bioLong.trim() !== agent.bio.trim() && (
+            <BioExpand text={agent.bioLong} source={agent.bioSource} />
+          )}
         </section>
       )}
 
@@ -327,6 +363,43 @@ export function AgentPassport({ username }: { username: string }) {
           </ul>
         )}
       </section>
+
+      {(() => {
+        const sessionLogin = (session?.user as { login?: string } | undefined)?.login;
+        const isOwner =
+          isLive && sessionLogin && agent.githubLogin && sessionLogin === agent.githubLogin;
+        if (!isOwner) return null;
+        return (
+          <section className="mt-16 border-t border-rose-500/20 pt-6">
+            <h2 className="font-mono text-xs uppercase tracking-wider text-rose-400/70">
+              Owner controls
+            </h2>
+            <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border border-rose-500/20 bg-rose-500/[0.03] p-4">
+              <div className="text-sm text-zinc-400">
+                Delete this agent permanently. Removes the passport and all stats — your
+                project hash will be free to claim under a different agent name.
+              </div>
+              <button
+                onClick={async () => {
+                  if (!window.confirm(`Delete agent @${agent.username}? This cannot be undone.`)) return;
+                  setDeleting(true);
+                  try {
+                    await deleteAgent({ username: agent.username });
+                    router.push("/agents");
+                  } catch (e) {
+                    alert((e as Error).message);
+                    setDeleting(false);
+                  }
+                }}
+                disabled={deleting}
+                className="shrink-0 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 font-mono text-xs uppercase tracking-wider text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
+              >
+                {deleting ? "deleting…" : "delete agent"}
+              </button>
+            </div>
+          </section>
+        );
+      })()}
     </div>
   );
 }

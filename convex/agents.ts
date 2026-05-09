@@ -209,6 +209,64 @@ export const claim = mutation({
   },
 });
 
+// Set bio (short) + bioLong (deep) on an agent.
+export const setBios = mutation({
+  args: {
+    agentId: v.id("agents"),
+    bio: v.optional(v.string()),
+    bioLong: v.optional(v.string()),
+    source: v.optional(v.string()),
+  },
+  handler: async (ctx, { agentId, bio, bioLong, source }) => {
+    const patch: Record<string, unknown> = {};
+    if (bio !== undefined) patch.bio = bio;
+    if (bioLong !== undefined) patch.bioLong = bioLong;
+    if (source) patch.bioSource = source;
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(agentId, patch);
+    }
+    return { ok: true };
+  },
+});
+
+// Set verified stats on an agent (called by the backfill action).
+export const setAgentStats = mutation({
+  args: {
+    agentId: v.id("agents"),
+    tasksCompleted: v.number(),
+    loopsStopped: v.number(),
+    filesTracedTotal: v.number(),
+    successRate: v.number(),
+    lastTaskAt: v.optional(v.number()),
+  },
+  handler: async (ctx, { agentId, tasksCompleted, loopsStopped, filesTracedTotal, successRate, lastTaskAt }) => {
+    const existing = (await ctx.db
+      .query("agentStats")
+      .withIndex("by_agent", (q) => q.eq("agentId" as never, agentId as never))
+      .unique()) as { _id: string } | null;
+
+    if (existing) {
+      await ctx.db.patch(existing._id as never, {
+        tasksCompleted,
+        loopsStopped,
+        filesTracedTotal,
+        successRate,
+        lastTaskAt,
+      });
+    } else {
+      await ctx.db.insert("agentStats", {
+        agentId,
+        tasksCompleted,
+        loopsStopped,
+        filesTracedTotal,
+        successRate,
+        lastTaskAt,
+      });
+    }
+    return { ok: true };
+  },
+});
+
 // Set skills on an agent (called by the Nia extraction action).
 export const setSkills = mutation({
   args: {
@@ -248,6 +306,28 @@ export const listByOwner = query({
       isSample: boolean;
     }>;
     return all.filter((a) => a.githubLogin === githubLogin && !a.isSample);
+  },
+});
+
+// Delete a specific agent by username — hand-tool for the Convex dashboard.
+// Cleans up the agent record + its agentStats row.
+export const deleteByUsername = mutation({
+  args: { username: v.string() },
+  handler: async (ctx, { username }) => {
+    const agent = (await ctx.db
+      .query("agents")
+      .withIndex("by_username", (q) => q.eq("username" as never, username as never))
+      .unique()) as { _id: string; isSample: boolean } | null;
+    if (!agent) return { ok: false, error: "no agent with that username" };
+    if (agent.isSample) return { ok: false, error: "refusing to delete sample agent" };
+
+    const stats = (await ctx.db
+      .query("agentStats")
+      .withIndex("by_agent", (q) => q.eq("agentId" as never, agent._id as never))
+      .collect()) as Array<{ _id: string }>;
+    for (const s of stats) await ctx.db.delete(s._id as never);
+    await ctx.db.delete(agent._id as never);
+    return { ok: true, deleted: username, statsDeleted: stats.length };
   },
 });
 

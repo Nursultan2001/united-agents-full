@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
+import { useSession } from "next-auth/react";
 import { api } from "@/convex/_generated/api";
 
 type Task = {
@@ -10,6 +11,7 @@ type Task = {
   title: string;
   description: string;
   posterName: string;
+  posterGithubLogin?: string;
   budget: number;
   currency: string;
   stack: string[];
@@ -71,7 +73,7 @@ const STATUS_COPY: Record<Task["status"], { label: string; color: string }> = {
   cancelled: { label: "cancelled", color: "var(--d2)" },
 };
 
-function relTime(ts: number): string {
+function computeRel(ts: number): string {
   const d = Date.now() - ts;
   const m = Math.floor(d / 60000);
   if (m < 60) return `${m}m ago`;
@@ -80,12 +82,33 @@ function relTime(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+// SSR-safe relative time — see EconomyView for the same pattern.
+function RelTime({ ts }: { ts: number }) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    setText(computeRel(ts));
+    const id = setInterval(() => setText(computeRel(ts)), 30_000);
+    return () => clearInterval(id);
+  }, [ts]);
+  return <span suppressHydrationWarning>{text}</span>;
+}
+
 export function TaskList() {
   const [filter, setFilter] = useState<"all" | Task["status"]>("all");
+  const [mineOnly, setMineOnly] = useState(false);
   const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
+  const { data: session } = useSession();
+  const sessionLogin = (session?.user as { login?: string } | undefined)?.login ?? null;
   const live = useQuery(api.tasks.list, {}) as Task[] | undefined;
-  const data = (live ?? SAMPLE_FALLBACK).filter((t) => filter === "all" || t.status === filter);
+  const data = (live ?? SAMPLE_FALLBACK).filter((t) => {
+    if (filter !== "all" && t.status !== filter) return false;
+    if (mineOnly && (!sessionLogin || t.posterGithubLogin !== sessionLogin)) return false;
+    return true;
+  });
   const isLive = hasConvex && Boolean(live);
+  const myCount = sessionLogin
+    ? (live ?? SAMPLE_FALLBACK).filter((t) => t.posterGithubLogin === sessionLogin).length
+    : 0;
 
   return (
     <div>
@@ -99,7 +122,7 @@ export function TaskList() {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           {(["all", "open", "escrowed", "in_progress", "approved"] as const).map((s) => (
             <button
               key={s}
@@ -119,6 +142,36 @@ export function TaskList() {
               {s.replace("_", " ")}
             </button>
           ))}
+          {sessionLogin && (
+            <>
+              <span style={{ width: 1, height: 22, background: "var(--b)", margin: "0 4px" }} />
+              <button
+                onClick={() => setMineOnly((v) => !v)}
+                title={`${myCount} task${myCount === 1 ? "" : "s"} posted by you`}
+                style={{
+                  fontFamily: "var(--font-space-mono)",
+                  fontSize: 11,
+                  padding: "6px 12px",
+                  border: mineOnly ? "1px solid rgba(100,220,120,0.5)" : "1px solid var(--b)",
+                  background: mineOnly ? "rgba(100,220,120,0.08)" : "transparent",
+                  color: mineOnly ? "var(--green)" : "var(--d2)",
+                  cursor: "pointer",
+                  textTransform: "lowercase",
+                  letterSpacing: "0.04em",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {mineOnly ? "✓ " : ""}mine only
+                {myCount > 0 && (
+                  <span style={{ color: mineOnly ? "var(--green)" : "var(--d2)", opacity: 0.7 }}>
+                    ({myCount})
+                  </span>
+                )}
+              </button>
+            </>
+          )}
         </div>
         <div
           style={{
@@ -231,7 +284,7 @@ export function TaskList() {
                       letterSpacing: "0.06em",
                     }}
                   >
-                    by {t.posterName} · {relTime(t.createdAt)}
+                    by {t.posterName} · <RelTime ts={t.createdAt} />
                   </div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>

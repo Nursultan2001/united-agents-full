@@ -6,6 +6,8 @@ export default defineSchema({
     username: v.string(),
     displayName: v.string(),
     bio: v.optional(v.string()),
+    bioLong: v.optional(v.string()),
+    bioSource: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
     githubLogin: v.optional(v.string()),
     projectHash: v.optional(v.string()),
@@ -62,6 +64,7 @@ export default defineSchema({
     description: v.string(),
     posterId: v.optional(v.id("agents")),
     posterName: v.string(),
+    posterGithubLogin: v.optional(v.string()),
     budget: v.number(),
     currency: v.string(),
     stack: v.array(v.string()),
@@ -79,10 +82,15 @@ export default defineSchema({
     escrowMode: v.union(v.literal("demo"), v.literal("stripe")),
     createdAt: v.number(),
     deadline: v.optional(v.number()),
+    deliverableUrl: v.optional(v.string()),
+    deliverableNotes: v.optional(v.string()),
+    submittedAt: v.optional(v.number()),
+    approvedAt: v.optional(v.number()),
     isSample: v.boolean(),
   })
     .index("by_status", ["status"])
     .index("by_posterId", ["posterId"])
+    .index("by_posterGithubLogin", ["posterGithubLogin"])
     .index("by_acceptedAgentId", ["acceptedAgentId"])
     .index("by_createdAt", ["createdAt"]),
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn, signOut } from "next-auth/react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -29,6 +29,13 @@ function slugifyClient(input: string): string {
     .slice(0, 40);
 }
 
+function parseRepoForPreview(input: string): string | null {
+  const cleaned = input.trim().replace(/\.git$/, "").replace(/\/$/, "");
+  if (!cleaned) return null;
+  const m = cleaned.match(/github\.com[/:]([^/\s]+)\/([^/\s]+)/) ?? cleaned.match(/^([^/\s]+)\/([^/\s]+)$/);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
 export function ClaimFlow({ configured, session }: Props) {
   const [busy, setBusy] = useState(false);
   const [pairing, setPairing] = useState(false);
@@ -41,8 +48,51 @@ export function ClaimFlow({ configured, session }: Props) {
   const claim = useMutation(api.agents.claim);
   const registerRepo = useAction(api.nia.registerRepo);
   const extractSkills = useAction(api.nia.extractSkills);
+  const backfillStats = useAction(api.nia.backfillStatsFromRepo);
+  const generateDescription = useAction(api.nia.generateAgentDescription);
+  const detectHash = useAction(api.nia.detectProjectHash);
+  const [hashAutoFilled, setHashAutoFilled] = useState(false);
+  const [hashDetecting, setHashDetecting] = useState(false);
+  const [hashDetectError, setHashDetectError] = useState<string | null>(null);
+  const [showHashOverride, setShowHashOverride] = useState(false);
   const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
   const agentSlug = slugifyClient(agentName);
+  const repoPreview = parseRepoForPreview(repoUrl);
+
+  // When the user pastes a parseable repo URL, try to auto-detect the project hash
+  // by reading .ua-history.json from the repo (works for united-agents-mcp v1.0.18+).
+  useEffect(() => {
+    if (!repoPreview || !hasConvex) {
+      setHashDetecting(false);
+      setHashDetectError(null);
+      return;
+    }
+    if (projectHash && !hashAutoFilled) return; // user-typed hash, leave alone
+    let cancelled = false;
+    setHashDetecting(true);
+    setHashDetectError(null);
+    const t = setTimeout(() => {
+      detectHash({ repoUrl: repoPreview })
+        .then((res) => {
+          if (cancelled) return;
+          if (res.ok && res.projectHash) {
+            setProjectHash(res.projectHash);
+            setHashAutoFilled(true);
+            setHashDetectError(null);
+          } else {
+            setHashDetectError(res.error ?? "could not detect");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setHashDetecting(false);
+        });
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repoPreview, hasConvex]);
 
   async function handleSignIn() {
     setBusy(true);
@@ -93,7 +143,7 @@ export function ClaimFlow({ configured, session }: Props) {
         username: result.username,
       });
 
-      // Fire-and-track Nia indexing if a repo URL was provided
+      // Fire-and-track Nia indexing + stats backfill if a repo URL was provided
       if (repoUrl.trim()) {
         setNiaStatus("📦 Registering repo with Nia…");
         try {
@@ -106,22 +156,49 @@ export function ClaimFlow({ configured, session }: Props) {
                 ? "✓ Repo already indexed by Nia. Extracting skills…"
                 : `🔄 Nia is indexing ${reg.repository}. Skills will appear in 1-2 min…`,
             );
-            // Try to extract skills now (works if indexed, otherwise no-op)
+
+            const skillStatus: string[] = [];
+
+            // Skills via Nia
             const extract = await extractSkills({
               agentId: result.agentId as never,
               repository: reg.repository ?? repoUrl.trim(),
             });
             if (extract.ok && extract.skills && extract.skills.length > 0) {
-              setNiaStatus(
-                `✓ Nia extracted ${extract.skills.length} skills: ${extract.skills.slice(0, 6).join(", ")}${extract.skills.length > 6 ? "…" : ""}`,
-              );
+              skillStatus.push(`✓ ${extract.skills.length} skills via Nia`);
             } else if (extract.ok) {
-              setNiaStatus(
-                `🔄 Indexing in progress — refresh /agents/${result.username} in a minute to see skills.`,
+              skillStatus.push("🔄 Skills indexing in progress");
+            } else {
+              skillStatus.push(`⚠ Skills: ${extract.error ?? "queued"}`);
+            }
+
+            // Stats from .ua-history.json in the repo
+            const back = await backfillStats({
+              agentId: result.agentId as never,
+              repoUrl: repoUrl.trim(),
+            });
+            if (back.ok) {
+              skillStatus.push(
+                `✓ ${back.tasksCompleted} tasks, ${back.loopsStopped} loops stopped backfilled from MCP history`,
               );
             } else {
-              setNiaStatus(`⚠ Skill extraction: ${extract.error ?? "queued"}`);
+              skillStatus.push(`⚠ Stats: ${back.error ?? "no .ua-history.json found"}`);
             }
+
+            // Description from README (or Nia fallback)
+            const desc = await generateDescription({
+              agentId: result.agentId as never,
+              repoUrl: repoUrl.trim(),
+            });
+            if (desc.ok && desc.bio) {
+              skillStatus.push(
+                `✓ Bio derived from ${desc.source === "readme" ? "README.md" : "Nia summary"}`,
+              );
+            } else if (!desc.ok) {
+              skillStatus.push(`⚠ Bio: ${desc.error ?? "skipped"}`);
+            }
+
+            setNiaStatus(skillStatus.join(" · "));
           }
         } catch (niaErr) {
           setNiaStatus(`⚠ Nia error: ${(niaErr as Error).message}`);
@@ -336,7 +413,7 @@ AUTH_SECRET=$(openssl rand -base64 32)`}
                 type="text"
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
-                placeholder="github.com/Nursultan2001/united-agents-full"
+                placeholder="owner/repo  ·  e.g. Nursultan2001/mcp-history-viewer"
                 style={{
                   width: "100%",
                   background: "var(--bg)",
@@ -348,6 +425,23 @@ AUTH_SECRET=$(openssl rand -base64 32)`}
                   outline: "none",
                 }}
               />
+              <div
+                style={{
+                  marginTop: 6,
+                  fontFamily: "var(--font-space-mono)",
+                  fontSize: 10,
+                  color: "var(--d2)",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {repoUrl.trim() === "" ? (
+                  <>accepts: <code>owner/repo</code>, <code>github.com/owner/repo</code>, or full <code>https://</code> URL · repo must be public</>
+                ) : repoPreview ? (
+                  <>will index → <span style={{ color: "var(--green)" }}>github.com/{repoPreview}</span></>
+                ) : (
+                  <span style={{ color: "rgba(255,160,160,0.95)" }}>✗ couldn&apos;t parse repo — use <code>owner/repo</code> format</span>
+                )}
+              </div>
             </div>
 
             <div>
@@ -362,24 +456,101 @@ AUTH_SECRET=$(openssl rand -base64 32)`}
                   marginBottom: 6,
                 }}
               >
-                Project hash
+                Project hash <span style={{ color: "var(--green)", textTransform: "none", letterSpacing: "0.04em" }}>(auto-detected from your repo)</span>
               </label>
-              <input
-                type="text"
-                value={projectHash}
-                onChange={(e) => setProjectHash(e.target.value.replace(/[^a-fA-F0-9]/g, ""))}
-                placeholder="paste from .ua-history.json — e.g. a1b2c3d4e5f6..."
+
+              {/* Status panel — replaces the input as the primary affordance */}
+              <div
                 style={{
-                  width: "100%",
-                  background: "var(--bg)",
-                  border: "1px solid var(--b)",
-                  color: "var(--t)",
-                  padding: "10px 12px",
+                  border: hashAutoFilled
+                    ? "1px solid rgba(100,220,120,0.4)"
+                    : hashDetectError
+                      ? "1px solid rgba(255,160,160,0.35)"
+                      : "1px solid var(--b)",
+                  background: hashAutoFilled ? "rgba(100,220,120,0.04)" : "var(--bg)",
+                  padding: "12px 14px",
                   fontFamily: "var(--font-space-mono)",
                   fontSize: 12,
-                  outline: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  minHeight: 40,
                 }}
-              />
+              >
+                {!repoPreview ? (
+                  <span style={{ color: "var(--d2)" }}>
+                    waiting for a valid GitHub repo above…
+                  </span>
+                ) : hashDetecting ? (
+                  <>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: "var(--green)",
+                        animation: "pulse 1.4s ease infinite",
+                      }}
+                    />
+                    <span style={{ color: "var(--d)" }}>reading .ua-history.json from {repoPreview}…</span>
+                  </>
+                ) : hashAutoFilled && projectHash ? (
+                  <>
+                    <span style={{ color: "var(--green)", fontWeight: 700 }}>✓</span>
+                    <span style={{ color: "var(--t)" }}>{projectHash}</span>
+                    <span style={{ color: "var(--d2)", fontSize: 10, marginLeft: "auto" }}>
+                      from .ua-history.json · mcp v1.0.18+
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ color: "rgba(255,180,140,0.95)" }}>⚠</span>
+                    <span style={{ color: "var(--d)", fontSize: 11 }}>
+                      {hashDetectError ?? "couldn't auto-detect"} —{" "}
+                      <button
+                        type="button"
+                        onClick={() => setShowHashOverride((v) => !v)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--green)",
+                          fontFamily: "inherit",
+                          fontSize: 11,
+                          cursor: "pointer",
+                          padding: 0,
+                          textDecoration: "underline",
+                        }}
+                      >
+                        {showHashOverride ? "hide" : "enter manually"}
+                      </button>
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {(showHashOverride || (!hashAutoFilled && projectHash)) && (
+                <input
+                  type="text"
+                  value={projectHash}
+                  onChange={(e) => {
+                    setProjectHash(e.target.value.replace(/[^a-fA-F0-9]/g, ""));
+                    setHashAutoFilled(false);
+                  }}
+                  placeholder="run `united-agents-mcp hash` in your project to get this"
+                  style={{
+                    marginTop: 8,
+                    width: "100%",
+                    background: "var(--bg)",
+                    border: "1px solid var(--b)",
+                    color: "var(--t)",
+                    padding: "10px 12px",
+                    fontFamily: "var(--font-space-mono)",
+                    fontSize: 12,
+                    outline: "none",
+                  }}
+                />
+              )}
             </div>
 
             <button

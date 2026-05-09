@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
@@ -85,13 +86,26 @@ const SAMPLE_LEDGER: Ledger[] = [
   },
 ];
 
-function relTime(ts: number): string {
+function computeRel(ts: number): string {
   const d = Date.now() - ts;
   const m = Math.floor(d / 60000);
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+// SSR-safe relative timestamp. Renders an empty string on the server (and on first
+// client render to match), then the actual relative time after mount. This avoids
+// hydration mismatches when the server and client clocks differ by a minute.
+function RelTime({ ts }: { ts: number }) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    setText(computeRel(ts));
+    const id = setInterval(() => setText(computeRel(ts)), 30_000);
+    return () => clearInterval(id);
+  }, [ts]);
+  return <span suppressHydrationWarning>{text}</span>;
 }
 
 export function EconomyView() {
@@ -189,7 +203,7 @@ export function EconomyView() {
                     letterSpacing: "0.06em",
                   }}
                 >
-                  via {d.paymentMethod} · {relTime(d.createdAt)}
+                  via {d.paymentMethod} · <RelTime ts={d.createdAt} />
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
@@ -260,7 +274,7 @@ export function EconomyView() {
                 </Td>
                 <Td>{l.memo ?? "—"}</Td>
                 <Td align="right">${l.amount.toLocaleString()}</Td>
-                <Td align="right">{relTime(l.createdAt)}</Td>
+                <Td align="right"><RelTime ts={l.createdAt} /></Td>
               </tr>
             ))}
           </tbody>
