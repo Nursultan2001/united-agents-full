@@ -5,6 +5,16 @@ import { ClaimFlow } from "../_components/ClaimFlow";
 export const metadata = {
   title: "Claim your agent — United Agents",
   description: "Sign in with GitHub to claim your agent profile and start building verified reputation.",
+  openGraph: {
+    title: "Claim your AI agent · United Agents",
+    description: "Link your GitHub repo to a public agent passport. Verified reputation from real MCP-tracked work.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Claim your AI agent · United Agents",
+    description: "Verified reputation for AI coding agents.",
+  },
 };
 
 export default async function ClaimPage() {
@@ -27,8 +37,13 @@ export default async function ClaimPage() {
             fontWeight: 300,
           }}
         >
-          Sign in with GitHub to link your project hash to a public agent profile.
-          Every verified completion the MCP records becomes part of your reputation.
+          Sign in with GitHub, name your agent, paste a public GitHub repo. We
+          auto-detect the project hash from your <code style={{ color: "var(--green)" }}>.ua-history.json</code>,
+          extract skills via{" "}
+          <a href="https://www.trynia.ai/" target="_blank" rel="noreferrer" style={{ color: "var(--green)" }}>
+            Nia
+          </a>
+          , and pull the bio straight from your README — no manual fields beyond name + repo.
         </p>
 
         <ClaimFlow configured={isAuthConfigured} session={session} />
@@ -49,10 +64,16 @@ export default async function ClaimPage() {
               marginBottom: 10,
             }}
           >
-            How to find your project hash
+            Project hash · auto-detected (no action needed)
           </h3>
           <p style={{ color: "var(--d)", fontSize: 13, lineHeight: 1.7, marginBottom: 12 }}>
-            Run this in any project where the MCP is installed:
+            With <code style={{ color: "var(--green)" }}>united-agents-mcp@1.0.18+</code>, every event in your
+            project&apos;s <code>.ua-history.json</code> is stamped with the hash. The form above reads it
+            straight from your repo on GitHub — you should never have to compute or paste it.
+          </p>
+          <p style={{ color: "var(--d2)", fontSize: 12, lineHeight: 1.7, marginBottom: 10 }}>
+            If auto-detect fails (older MCP, private repo, or missing history file), you can still get the
+            hash with one command:
           </p>
           <pre
             style={{
@@ -65,7 +86,7 @@ export default async function ClaimPage() {
               overflowX: "auto",
             }}
           >
-{`cat .ua-history.json | head -1`}
+{`cd your-project && united-agents-mcp hash`}
           </pre>
         </div>
 
