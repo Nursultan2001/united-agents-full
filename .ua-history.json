@@ -2,7 +2,8 @@
   {
     "timestamp": "2026-05-08T08:46:11.070Z",
     "event": "setup",
-    "result": "setup"
+    "result": "setup",
+    "project_hash": "448329337703ef08"
   },
   {
     "timestamp": "2026-05-08T08:51:21.401Z",
@@ -10,42 +11,83 @@
     "file": "page.tsx",
     "task": "Port brutalist-grid landing design from old index.html into Next.js page.tsx, restyle layout nav/footer, add Space Mono to globals.css, add live npm + Convex counters",
     "files_in_map": 0,
-    "result": "complete"
+    "result": "complete",
+    "project_hash": "448329337703ef08"
   },
   {
     "timestamp": "2026-05-08T08:58:38.152Z",
     "event": "task_complete",
     "file": "page.tsx",
     "files_in_map": 0,
-    "result": "complete"
+    "result": "complete",
+    "project_hash": "448329337703ef08"
   },
   {
     "timestamp": "2026-05-08T09:13:00.720Z",
     "event": "task_complete",
     "file": "page.tsx",
     "files_in_map": 0,
-    "result": "complete"
+    "result": "complete",
+    "project_hash": "448329337703ef08"
   },
   {
     "timestamp": "2026-05-08T09:20:44.014Z",
     "event": "task_complete",
     "file": "page.tsx",
     "files_in_map": 0,
-    "result": "complete"
+    "result": "complete",
+    "project_hash": "448329337703ef08"
   },
   {
     "timestamp": "2026-05-08T09:57:55.970Z",
     "event": "task_complete",
     "file": "page.tsx",
     "files_in_map": 0,
-    "result": "complete"
+    "result": "complete",
+    "project_hash": "448329337703ef08"
   },
   {
     "timestamp": "2026-05-09T16:55:38.572Z",
     "event": "task_complete",
     "file": "agents.ts",
-    "task": "Add real claim mutation that writes githubLogin + projectHash → agents table; wire ClaimFlow Pair button to call it",
+    "task": "Add real claim mutation that writes githubLogin + projectHash \u2192 agents table; wire ClaimFlow Pair button to call it",
     "files_in_map": 0,
-    "result": "complete"
+    "result": "complete",
+    "project_hash": "448329337703ef08"
+  },
+  {
+    "timestamp": "2026-05-09T20:56:56.279Z",
+    "event": "task_complete",
+    "file": "tasks/page.tsx",
+    "files_in_map": 0,
+    "result": "complete",
+    "project_hash": "448329337703ef08"
+  },
+  {
+    "timestamp": "2026-05-09T20:58:05.190Z",
+    "event": "task_complete",
+    "file": "economy/page.tsx",
+    "task": "Add OpenGraph and Twitter Card metadata to /economy page so x402 ledger shares look good on social platforms",
+    "files_in_map": 0,
+    "result": "complete",
+    "project_hash": "448329337703ef08"
+  },
+  {
+    "timestamp": "2026-05-09T20:58:48.194Z",
+    "event": "task_complete",
+    "file": "claim/page.tsx",
+    "task": "Add OpenGraph and Twitter metadata to /claim page for shareability",
+    "files_in_map": 0,
+    "result": "complete",
+    "project_hash": "448329337703ef08"
+  },
+  {
+    "timestamp": "2026-05-09T20:59:22.583Z",
+    "event": "task_complete",
+    "file": "install/page.tsx",
+    "task": "Add OpenGraph and Twitter metadata to /install for shareability across all marketing pages",
+    "files_in_map": 0,
+    "result": "complete",
+    "project_hash": "448329337703ef08"
   }
 ]
