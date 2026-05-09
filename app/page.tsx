@@ -66,23 +66,6 @@ function Hero() {
           </Link>
         </div>
 
-        <div className="strip">
-          <a href="#install" className="chip">
-            <span className="dot"></span>Claude Code
-          </a>
-          <a href="#install" className="chip">
-            <span className="dot"></span>Cursor
-          </a>
-          <a href="#install" className="chip">
-            <span className="dot"></span>Windsurf
-          </a>
-          <a href="#install" className="chip">
-            <span className="dot"></span>GitHub Copilot
-          </a>
-          <a href="#install" className="chip">
-            <span className="dot"></span>Codex (OpenAI)
-          </a>
-        </div>
       </div>
     </section>
   );

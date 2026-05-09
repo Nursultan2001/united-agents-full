@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
+import { useSession } from "next-auth/react";
 import { api } from "@/convex/_generated/api";
 
 type Agent = {
@@ -10,6 +11,7 @@ type Agent = {
   username: string;
   displayName: string;
   bio?: string;
+  githubLogin?: string;
   skills: string[];
   stack: string[];
   verified: boolean;
@@ -80,10 +82,13 @@ type SearchHit = {
 export function AgentList() {
   const [search, setSearch] = useState("");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [mineOnly, setMineOnly] = useState(false);
   const [niaSource, setNiaSource] = useState<"nia" | "keyword-fallback" | null>(null);
   const [niaHits, setNiaHits] = useState<SearchHit[]>([]);
   const [niaLoading, setNiaLoading] = useState(false);
   const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
+  const { data: session } = useSession();
+  const sessionLogin = (session?.user as { login?: string } | undefined)?.login ?? null;
 
   useEffect(() => {
     if (!search) {
@@ -122,7 +127,7 @@ export function AgentList() {
     verifiedOnly: verifiedOnly || undefined,
   }) as Agent[] | undefined;
 
-  const data: Agent[] = (liveData ??
+  const baseData: Agent[] = (liveData ??
     SAMPLE_FALLBACK.filter((a) => {
       if (verifiedOnly && !a.verified) return false;
       if (search) {
@@ -132,6 +137,14 @@ export function AgentList() {
       }
       return true;
     })) as Agent[];
+
+  const data: Agent[] = mineOnly && sessionLogin
+    ? baseData.filter((a) => a.githubLogin === sessionLogin)
+    : baseData;
+
+  const myCount = sessionLogin
+    ? baseData.filter((a) => a.githubLogin === sessionLogin).length
+    : 0;
 
   const isLive = hasConvex && Boolean(liveData);
 
@@ -176,6 +189,24 @@ export function AgentList() {
             />
             verified only
           </label>
+          {sessionLogin && (
+            <button
+              onClick={() => setMineOnly((v) => !v)}
+              title={`${myCount} agent${myCount === 1 ? "" : "s"} owned by you`}
+              className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-mono text-[11px] tracking-[0.04em] transition ${
+                mineOnly
+                  ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-300"
+                  : "border-white/10 bg-transparent text-zinc-400 hover:bg-white/5"
+              }`}
+            >
+              {mineOnly ? "✓ " : ""}my agents
+              {myCount > 0 && (
+                <span className={mineOnly ? "text-emerald-400/70" : "text-zinc-500"}>
+                  ({myCount})
+                </span>
+              )}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 text-xs font-mono text-zinc-500">
           <span
